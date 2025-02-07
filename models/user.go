@@ -2,11 +2,16 @@ package models
 
 import "go.mongodb.org/mongo-driver/bson/primitive"
 
-// User представляет пользователя в системе
 type User struct {
 	ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Name        string             `json:"name" bson:"name"`
-	Role        string             `json:"role" bson:"role"`
 	KeyID       string             `json:"key_id" bson:"key_id"`
-	AccessRooms []string           `json:"access_rooms" bson:"access_rooms"` // Список комнат, доступных для пользователя
+	FirstName   string             `json:"first_name" bson:"first_name"`               // Имя
+	SecondName  string             `json:"second_name" bson:"second_name"`             // Фамилия
+	Email       string             `json:"email" bson:"email"`                         // Электронная почта
+	AccessRooms []string           `json:"access_rooms" bson:"access_rooms"`           // Список комнат, к которым есть доступ
+	Photos      []string           `json:"photos,omitempty" bson:"photos,omitempty"`   // Фотографии пользователя (необязательно)
+	Address     string             `json:"address,omitempty" bson:"address,omitempty"` // Адрес (необязательно)
+	Phone       string             `json:"phone,omitempty" bson:"phone,omitempty"`     // Телефон (необязательно)
+	Country     string             `json:"country,omitempty" bson:"country,omitempty"` // Страна (необязательно)
+	City        string             `json:"city,omitempty" bson:"city,omitempty"`       // Город (необязательно)
 }

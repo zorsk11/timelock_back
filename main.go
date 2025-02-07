@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log"
+
 	"access-control-system/config"
 	"access-control-system/routes"
 
@@ -9,6 +11,15 @@ import (
 
 func main() {
 	config.ConnectDB()
+
+	// Устанавливаем режим работы
+	if config.Debug {
+		gin.SetMode(gin.DebugMode)
+		log.Println("Running in Debug mode")
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+		log.Println("Running in Release mode")
+	}
 
 	router := gin.Default()
 

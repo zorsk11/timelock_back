@@ -9,12 +9,19 @@ import (
 
 // SetupCORS настраивает CORS middleware для Gin
 func SetupCORS(router *gin.Engine) {
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173"}, // Разрешенные источники
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+	corsConfig := cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
 		AllowHeaders:     []string{"Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
-		MaxAge:           12 * time.Hour, // Кеширование preflight-запросов
-	}))
+		MaxAge:           12 * time.Hour,
+	}
+
+	// Используем config.Debug
+	if Debug {
+		corsConfig.AllowOrigins = []string{"*"} // В режиме отладки разрешаем все источники
+	}
+
+	router.Use(cors.New(corsConfig))
 }
