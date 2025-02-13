@@ -1,6 +1,16 @@
 package models
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+type Role string
+
+const (
+	RoleAdmin   Role = "администратор"
+	RoleTeacher Role = "учитель"
+	RoleStaff   Role = "персонал"
+)
 
 type User struct {
 	ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
@@ -14,4 +24,6 @@ type User struct {
 	Phone       string             `json:"phone,omitempty" bson:"phone,omitempty"`     // Телефон (необязательно)
 	Country     string             `json:"country,omitempty" bson:"country,omitempty"` // Страна (необязательно)
 	City        string             `json:"city,omitempty" bson:"city,omitempty"`       // Город (необязательно)
+	Role        Role               `json:"role" bson:"role"`                           // Роль пользователя
+	Password    string             `json:"password,omitempty" bson:"password"`         // Пароль (необязательно)
 }

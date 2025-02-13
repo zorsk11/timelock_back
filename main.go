@@ -10,27 +10,36 @@ import (
 )
 
 func main() {
+	// Подключаемся к базе данных
 	config.ConnectDB()
 
-	// Устанавливаем режим работы
+	// Устанавливаем режим работы (Debug или Release)
 	if config.Debug {
 		gin.SetMode(gin.DebugMode)
-		log.Println("Running in Debug mode")
+		log.Println("Запуск в режиме Debug")
 	} else {
 		gin.SetMode(gin.ReleaseMode)
-		log.Println("Running in Release mode")
+		log.Println("Запуск в режиме Release")
 	}
 
+	// Создаем экземпляр маршрутизатора
 	router := gin.Default()
 
-	// Подключаем CORS
+	// Подключаем CORS (настройки CORS определены в config.SetupCORS)
 	config.SetupCORS(router)
 
-	// Регистрируем маршруты
+	// Регистрируем публичные маршруты, включая /login
+	routes.RegisterPublicRoutes(router)
 	routes.UserRoutes(router)
 	routes.RegisterRoutes(router)
 	routes.RoomRoutes(router)
 	routes.ScheduleRoutes(router)
 
-	router.Run(":8080")
+	// Регистрируем маршруты для администраторов
+	routes.RegisterAdminRoutes(router)
+
+	// Запускаем сервер на порту 8080
+	if err := router.Run(":8080"); err != nil {
+		log.Fatal("Ошибка при запуске сервера:", err)
+	}
 }
