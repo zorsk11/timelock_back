@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AdminOnly проверяет, что пользователь аутентифицирован и имеет роль "администратор".
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Предполагается, что объект пользователя уже установлен в контекст (например, после проверки JWT).

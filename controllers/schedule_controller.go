@@ -5,11 +5,31 @@ import (
 	"access-control-system/models"
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
+
+// getUserIDByName ищет пользователя по имени и фамилии и возвращает его ObjectID
+func getUserIDByName(firstName, secondName string) (primitive.ObjectID, error) {
+	var user models.User // Предполагается, что структура User определена в models
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	collection := config.DB.Database("ENU").Collection("users") // Коллекция пользователей
+	filter := bson.M{"first_name": firstName, "second_name": secondName}
+
+	err := collection.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		return primitive.NilObjectID, err
+	}
+
+	return user.ID, nil
+}
 
 // CreateSchedule создает новое расписание
 func CreateSchedule(c *gin.Context) {
@@ -19,11 +39,24 @@ func CreateSchedule(c *gin.Context) {
 		return
 	}
 
+	// Найти пользователя по имени и фамилии
+	userID, err := getUserIDByName(schedule.FirstName, schedule.SecondName)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка поиска пользователя"})
+		return
+	}
+
+	// Назначить UserID найденного пользователя
+	schedule.UserID = userID
 	schedule.ID = primitive.NewObjectID()
 
-	// Исправленный доступ к коллекции schedule в базе данных ENU
+	// Добавить расписание в коллекцию
 	collection := config.DB.Database("ENU").Collection("schedule")
-	_, err := collection.InsertOne(context.TODO(), schedule)
+	_, err = collection.InsertOne(context.TODO(), schedule)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -34,13 +67,11 @@ func CreateSchedule(c *gin.Context) {
 
 // GetSchedules извлекает все расписания из базы данных
 func GetSchedules(c *gin.Context) {
-	// Проверка соединения с базой данных
 	if config.DB == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Нет соединения с базой данных"})
 		return
 	}
 
-	// Получаем все расписания
 	cursor, err := config.DB.Database("ENU").Collection("schedule").Find(context.TODO(), bson.D{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка получения данных", "details": err.Error()})
@@ -48,18 +79,13 @@ func GetSchedules(c *gin.Context) {
 	}
 	defer cursor.Close(context.TODO())
 
-	// Преобразуем все документы в слайс
 	var schedules []models.Schedule
 	if err := cursor.All(context.TODO(), &schedules); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при преобразовании данных", "details": err.Error()})
 		return
 	}
 
-	// Ответ клиенту
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Список расписаний",
-		"data":    schedules,
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "Список расписаний", "data": schedules})
 }
 
 // UpdateSchedule обновляет данные расписания

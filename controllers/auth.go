@@ -43,14 +43,13 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Получаем коллекцию пользователей из настроек подключения к MongoDB.
 	collection := config.GetCollection("users")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	var user models.User
 
-	// Ищем пользователя в базе данных по email или телефону.
+	// Ищем пользователя по email или телефону.
 	filter := bson.M{
 		"$or": []bson.M{
 			{"email": credentials.Identifier},
@@ -72,8 +71,12 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Добавляем проверку: только администратор может авторизоваться.
+	// Проверяем, является ли пользователь администратором.
 	if user.Role != models.RoleAdmin {
+		// Логируем попытку входа в админ-панель неадминистратором.
+		LogEvent("admin_access_denied",
+			"Пользователь "+user.FirstName+" "+user.SecondName+" с ролью '"+string(user.Role)+"' пытался авторизоваться как администратор",
+			nil)
 		log.Printf("Попытка авторизации неадминистратора: %s", credentials.Identifier)
 		c.JSON(http.StatusForbidden, gin.H{"error": "Доступ разрешен только администраторам"})
 		return

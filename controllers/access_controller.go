@@ -6,21 +6,31 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// ScheduleWithUser объединяет данные расписания и данные пользователя.
+type ScheduleWithUser struct {
+	models.Schedule `bson:",inline"`
+	UserInfo        struct {
+		FirstName  string `bson:"first_name"`
+		SecondName string `bson:"second_name"`
+	} `bson:"user_info"`
+}
+
 // CheckAccess проверяет, имеет ли пользователь доступ к комнате на основе расписания.
-// Если день недели или текущее время не совпадают с данными из расписания, доступ будет запрещён.
 func CheckAccess(c *gin.Context) {
 	// Получаем идентификаторы пользователя и комнаты из URL-параметров
 	userIDParam := c.Param("user_id")
 	roomNumber := c.Param("room_number")
 
-	// Преобразуем userID в primitive.ObjectID, если он хранится в таком виде
+	// Преобразуем userID в primitive.ObjectID
 	userID, err := primitive.ObjectIDFromHex(userIDParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат user_id"})
@@ -44,35 +54,64 @@ func CheckAccess(c *gin.Context) {
 		return
 	}
 
+	// Разбиваем каждый элемент AccessRooms по запятой, чтобы получить список отдельных номеров
+	var rooms []string
+	for _, roomStr := range user.AccessRooms {
+		splitted := strings.Split(roomStr, ",")
+		rooms = append(rooms, splitted...)
+	}
+
 	// Проверяем, есть ли запрошенная комната в списке доступных для пользователя
 	hasRoomAccess := false
-	for _, room := range user.AccessRooms {
+	for _, room := range rooms {
 		if room == roomNumber {
 			hasRoomAccess = true
 			break
 		}
 	}
 	if !hasRoomAccess {
+		LogEvent("unauthorized_door_access",
+			"Пользователь "+user.FirstName+" "+user.SecondName+" пытался получить доступ к комнате "+roomNumber+" без разрешения",
+			nil)
 		c.JSON(http.StatusForbidden, gin.H{"message": "У пользователя нет доступа к этой комнате"})
 		return
 	}
 
-	var schedule models.Schedule
-	err = config.DB.Database("ENU").Collection("schedule").
-		FindOne(context.TODO(), bson.M{
-			"user_id":     userID,
-			"room_number": roomNumber,
-			"day":         currentDay,
-		}).Decode(&schedule)
+	// Агрегация с left join: получаем расписание с данными пользователя (FirstName, SecondName)
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.D{
+			{"user_id", userID},
+			{"room_number", roomNumber},
+			{"day", currentDay},
+		}}},
+		{{"$lookup", bson.D{
+			{"from", "users"},
+			{"localField", "user_id"},
+			{"foreignField", "_id"},
+			{"as", "user_info"},
+		}}},
+		{{"$unwind", "$user_info"}},
+	}
+
+	cursor, err := config.DB.Database("ENU").Collection("schedule").Aggregate(context.TODO(), pipeline)
 	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка агрегирования расписания"})
+		return
+	}
+	var results []ScheduleWithUser
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка декодирования результатов"})
+		return
+	}
+	if len(results) == 0 {
+		LogEvent("unauthorized_schedule_access",
+			"Пользователь "+user.FirstName+" "+user.SecondName+" пытался войти в комнату "+roomNumber+" без действующего расписания на "+currentDay,
+			&user.ID)
 		c.JSON(http.StatusForbidden, gin.H{"message": "Нет расписания для этой комнаты в данный день"})
 		return
 	}
-
-	if schedule.Day != currentDay {
-		c.JSON(http.StatusForbidden, gin.H{"message": "День доступа не соответствует расписанию"})
-		return
-	}
+	scheduleWithUser := results[0]
+	schedule := scheduleWithUser.Schedule
 
 	// Если время расписания задано без секунд (например, "17:10"), добавляем ":00"
 	if len(schedule.StartTime) == 5 {
@@ -82,12 +121,11 @@ func CheckAccess(c *gin.Context) {
 		schedule.EndTime = schedule.EndTime + ":00"
 	}
 
-	// Формируем полное время начала и окончания расписания, привязывая их к сегодняшней дате
+	// Формируем полное время начала и окончания расписания
 	dateStr := now.Format("2006-01-02")
 	startDateTimeStr := fmt.Sprintf("%s %s", dateStr, schedule.StartTime)
 	endDateTimeStr := fmt.Sprintf("%s %s", dateStr, schedule.EndTime)
 
-	// Парсинг времени с учётом временной зоны для Астаны
 	startTime, err := time.ParseInLocation("2006-01-02 15:04:05", startDateTimeStr, loc)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка в формате времени начала расписания"})
@@ -101,10 +139,18 @@ func CheckAccess(c *gin.Context) {
 	}
 
 	// Проверяем, находится ли текущее время в пределах расписания.
-	// Если время входа не попадает в указанный интервал, вход запрещается.
 	if now.After(startTime) && now.Before(endTime) {
-		c.JSON(http.StatusOK, gin.H{"message": "Доступ разрешен"})
+		// В ответе можно вернуть имя пользователя вместо user_id
+		c.JSON(http.StatusOK, gin.H{
+			"message":    "Доступ разрешен",
+			"firstName":  scheduleWithUser.UserInfo.FirstName,
+			"secondName": scheduleWithUser.UserInfo.SecondName,
+		})
 	} else {
+		LogEvent("unauthorized_time_access",
+			"Пользователь "+scheduleWithUser.UserInfo.FirstName+" "+scheduleWithUser.UserInfo.SecondName+" пытался войти в комнату "+roomNumber+" в неразрешённое время ("+now.Format("15:04:05")+
+				"). Допустимое время: "+schedule.StartTime+" - "+schedule.EndTime,
+			&user.ID)
 		c.JSON(http.StatusForbidden, gin.H{"message": "Время доступа не соответствует расписанию"})
 	}
 }

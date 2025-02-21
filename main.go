@@ -34,9 +34,8 @@ func main() {
 	routes.RegisterRoutes(router)
 	routes.RoomRoutes(router)
 	routes.ScheduleRoutes(router)
-
-	// Регистрируем маршруты для администраторов
 	routes.RegisterAdminRoutes(router)
+	routes.LogRoutes(router)
 
 	// Запускаем сервер на порту 8080
 	if err := router.Run(":8080"); err != nil {

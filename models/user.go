@@ -15,11 +15,11 @@ const (
 type User struct {
 	ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	KeyID       string             `json:"key_id" bson:"key_id"`
-	FirstName   string             `json:"first_name" bson:"first_name"`               // Имя
-	SecondName  string             `json:"second_name" bson:"second_name"`             // Фамилия
-	Email       string             `json:"email" bson:"email"`                         // Электронная почта
-	AccessRooms []string           `json:"access_rooms" bson:"access_rooms"`           // Список комнат, к которым есть доступ
-	Photos      []string           `json:"photos,omitempty" bson:"photos,omitempty"`   // Фотографии пользователя (необязательно)
+	FirstName   string             `json:"first_name" bson:"first_name"`
+	SecondName  string             `json:"second_name" bson:"second_name"`
+	Email       string             `json:"email" bson:"email"`
+	AccessRooms []string           `json:"access_rooms" bson:"access_rooms"`
+	Photos      []string           `json:"photos,omitempty" bson:"photos,omitempty"`
 	Address     string             `json:"address,omitempty" bson:"address,omitempty"` // Адрес (необязательно)
 	Phone       string             `json:"phone,omitempty" bson:"phone,omitempty"`     // Телефон (необязательно)
 	Country     string             `json:"country,omitempty" bson:"country,omitempty"` // Страна (необязательно)
