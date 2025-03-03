@@ -15,12 +15,12 @@ import (
 
 // getUserIDByName ищет пользователя по имени и фамилии и возвращает его ObjectID
 func getUserIDByName(firstName, secondName string) (primitive.ObjectID, error) {
-	var user models.User // Предполагается, что структура User определена в models
+	var user models.User
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	collection := config.DB.Database("ENU").Collection("users") // Коллекция пользователей
+	collection := config.DB.Database("ENU").Collection("users")
 	filter := bson.M{"first_name": firstName, "second_name": secondName}
 
 	err := collection.FindOne(ctx, filter).Decode(&user)
@@ -50,11 +50,10 @@ func CreateSchedule(c *gin.Context) {
 		return
 	}
 
-	// Назначить UserID найденного пользователя
+	// Назначить UserID найденного пользователя и создать новый ObjectID для расписания
 	schedule.UserID = userID
 	schedule.ID = primitive.NewObjectID()
 
-	// Добавить расписание в коллекцию
 	collection := config.DB.Database("ENU").Collection("schedule")
 	_, err = collection.InsertOne(context.TODO(), schedule)
 	if err != nil {
@@ -103,8 +102,26 @@ func UpdateSchedule(c *gin.Context) {
 		return
 	}
 
+	// При необходимости обновляем userID по имени и фамилии
+	if userID, err := getUserIDByName(updatedSchedule.FirstName, updatedSchedule.SecondName); err == nil {
+		updatedSchedule.UserID = userID
+	}
+
+	// Формируем объект обновления вручную, чтобы не перезаписывать поля неверными или пустыми значениями
+	updateData := bson.M{
+		"userId":      updatedSchedule.UserID,
+		"first_name":  updatedSchedule.FirstName,
+		"second_name": updatedSchedule.SecondName,
+		"day":         updatedSchedule.Day,
+		"startTime":   updatedSchedule.StartTime,
+		"endTime":     updatedSchedule.EndTime,
+		"roomNumber":  updatedSchedule.RoomNumber,
+		"subject":     updatedSchedule.Subject,
+	}
+
 	collection := config.DB.Database("ENU").Collection("schedule")
-	update := bson.M{"$set": updatedSchedule}
+	update := bson.M{"$set": updateData}
+
 	result, err := collection.UpdateOne(context.TODO(), bson.M{"_id": objID}, update)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось обновить расписание"})
@@ -116,7 +133,7 @@ func UpdateSchedule(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Расписание успешно обновлено"})
+	c.JSON(http.StatusOK, gin.H{"message": "Расписание успешно обновлено", "data": updateData})
 }
 
 // DeleteSchedule удаляет расписание
