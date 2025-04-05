@@ -7,6 +7,5 @@ import (
 )
 
 func RegisterPublicRoutes(router *gin.Engine) {
-	// Регистрация маршрута для логина.
 	router.POST("/login", controllers.Login)
 }

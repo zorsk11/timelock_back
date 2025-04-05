@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterAdminRoutes регистрирует маршруты, доступные только администраторам.
 func RegisterAdminRoutes(router *gin.Engine) {
 	adminGroup := router.Group("/admin")
 	adminGroup.Use(middleware.JWTAuthMiddleware(), middleware.AdminOnly())

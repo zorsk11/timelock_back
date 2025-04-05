@@ -15,7 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// ScheduleWithUser объединяет данные расписания и данные пользователя.
 type ScheduleWithUser struct {
 	models.Schedule `bson:",inline"`
 	UserInfo        struct {
@@ -24,13 +23,10 @@ type ScheduleWithUser struct {
 	} `bson:"user_info"`
 }
 
-// CheckAccess проверяет, имеет ли пользователь доступ к комнате на основе расписания.
 func CheckAccess(c *gin.Context) {
-	// Получаем идентификаторы пользователя и комнаты из URL-параметров
 	userIDParam := c.Param("user_id")
 	roomNumber := c.Param("room_number")
 
-	// Преобразуем userID в primitive.ObjectID
 	userID, err := primitive.ObjectIDFromHex(userIDParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат user_id"})
@@ -54,14 +50,12 @@ func CheckAccess(c *gin.Context) {
 		return
 	}
 
-	// Разбиваем каждый элемент AccessRooms по запятой, чтобы получить список отдельных номеров
 	var rooms []string
 	for _, roomStr := range user.AccessRooms {
 		splitted := strings.Split(roomStr, ",")
 		rooms = append(rooms, splitted...)
 	}
 
-	// Проверяем, есть ли запрошенная комната в списке доступных для пользователя
 	hasRoomAccess := false
 	for _, room := range rooms {
 		if room == roomNumber {
@@ -77,7 +71,6 @@ func CheckAccess(c *gin.Context) {
 		return
 	}
 
-	// Агрегация с left join: получаем расписание с данными пользователя (FirstName, SecondName)
 	pipeline := mongo.Pipeline{
 		{{"$match", bson.D{
 			{"user_id", userID},
@@ -113,7 +106,6 @@ func CheckAccess(c *gin.Context) {
 	scheduleWithUser := results[0]
 	schedule := scheduleWithUser.Schedule
 
-	// Если время расписания задано без секунд (например, "17:10"), добавляем ":00"
 	if len(schedule.StartTime) == 5 {
 		schedule.StartTime = schedule.StartTime + ":00"
 	}
@@ -121,7 +113,6 @@ func CheckAccess(c *gin.Context) {
 		schedule.EndTime = schedule.EndTime + ":00"
 	}
 
-	// Формируем полное время начала и окончания расписания
 	dateStr := now.Format("2006-01-02")
 	startDateTimeStr := fmt.Sprintf("%s %s", dateStr, schedule.StartTime)
 	endDateTimeStr := fmt.Sprintf("%s %s", dateStr, schedule.EndTime)
@@ -138,9 +129,7 @@ func CheckAccess(c *gin.Context) {
 		return
 	}
 
-	// Проверяем, находится ли текущее время в пределах расписания.
 	if now.After(startTime) && now.Before(endTime) {
-		// В ответе можно вернуть имя пользователя вместо user_id
 		c.JSON(http.StatusOK, gin.H{
 			"message":    "Доступ разрешен",
 			"firstName":  scheduleWithUser.UserInfo.FirstName,

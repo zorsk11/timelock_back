@@ -14,24 +14,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// jwtKey — секретный ключ для подписи JWT-токенов.
-// В реальном проекте храните его в переменных окружения!
+
 var jwtKey = []byte("my_secret_key")
 
-// Claims описывает полезную нагрузку JWT-токена.
 type Claims struct {
 	ID         string      `json:"id"`
-	Identifier string      `json:"identifier"` // может содержать email или номер телефона
+	Identifier string      `json:"identifier"` 
 	Role       models.Role `json:"role"`
 	jwt.RegisteredClaims
 }
 
-// Login аутентифицирует пользователя по email или номеру телефона и паролю,
-// генерирует JWT-токен и возвращает его клиенту вместе с актуальными данными пользователя.
+
 func Login(c *gin.Context) {
 	log.Println("Началась обработка запроса POST /login")
 
-	// Структура для привязки входящих данных (логин и пароль).
 	var credentials struct {
 		Identifier string `json:"identifier"`
 		Password   string `json:"password"`
@@ -49,7 +45,6 @@ func Login(c *gin.Context) {
 
 	var user models.User
 
-	// Ищем пользователя по email или телефону.
 	filter := bson.M{
 		"$or": []bson.M{
 			{"email": credentials.Identifier},
@@ -64,16 +59,13 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Проверяем хэшированный пароль.
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(credentials.Password)); err != nil {
 		log.Printf("Неверный пароль для пользователя %s: %v", credentials.Identifier, err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Неверный логин или пароль"})
 		return
 	}
 
-	// Проверяем, является ли пользователь администратором.
 	if user.Role != models.RoleAdmin {
-		// Логируем попытку входа в админ-панель неадминистратором.
 		LogEvent("admin_access_denied",
 			"Пользователь "+user.FirstName+" "+user.SecondName+" с ролью '"+string(user.Role)+"' пытался авторизоваться как администратор",
 			nil)
@@ -82,7 +74,6 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Создаем JWT-токен с минимальными данными.
 	expirationTime := time.Now().Add(72 * time.Hour)
 	claims := &Claims{
 		ID:         user.ID.Hex(),
@@ -101,7 +92,6 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Возвращаем JWT-токен и актуальные данные пользователя (без поля Password)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Вы успешно авторизовались",
 		"token":   tokenString,

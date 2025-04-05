@@ -13,14 +13,12 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// LogRequest описывает структуру входящего запроса для создания лога.
 type LogRequest struct {
 	EventType string `json:"event_type" binding:"required"`
 	Message   string `json:"message" binding:"required"`
-	UserID    string `json:"user_id"` // может быть пустой строкой, если отсутствует
+	UserID    string `json:"user_id"` 
 }
 
-// CreateLog принимает JSON-запрос, валидирует данные и вызывает функцию LogEvent для записи лога.
 func CreateLog(c *gin.Context) {
 	var req LogRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -38,14 +36,11 @@ func CreateLog(c *gin.Context) {
 		userID = &oid
 	}
 
-	// Вызываем функцию логирования, которая записывает событие в MongoDB
 	LogEvent(req.EventType, req.Message, userID)
 
 	c.JSON(http.StatusOK, gin.H{"status": "Лог записан"})
 }
 
-// LogEvent записывает событие в коллекцию "logs" базы данных ENU.
-// Если у события есть привязка к конкретному пользователю, можно передать его идентификатор.
 func LogEvent(eventType, message string, userID *primitive.ObjectID) {
 	logCollection := config.DB.Database("ENU").Collection("logs")
 	logEntry := models.Log{
@@ -65,7 +60,6 @@ func LogEvent(eventType, message string, userID *primitive.ObjectID) {
 	}
 }
 
-// GetLogs получает все записи логов из коллекции "logs".
 func GetLogs(c *gin.Context) {
 	logCollection := config.DB.Database("ENU").Collection("logs")
 	cursor, err := logCollection.Find(context.TODO(), bson.M{})

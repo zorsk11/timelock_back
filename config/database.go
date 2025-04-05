@@ -14,12 +14,10 @@ import (
 var DB *mongo.Client
 
 func ConnectDB() {
-	// Загрузка переменных окружения из .env файла
 	if err := godotenv.Load(); err != nil {
 		log.Println("Файл .env не найден")
 	}
 
-	// Получаем строку подключения из переменной окружения
 	log.Println("Получаем MONGODB_URI из переменных окружения")
 	mongoURI := os.Getenv("MONGODB_URI")
 	if mongoURI == "" {
@@ -34,7 +32,6 @@ func ConnectDB() {
 	}
 	log.Println("Клиент MongoDB создан")
 
-	// Контекст с таймаутом для подключения
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -45,7 +42,6 @@ func ConnectDB() {
 	}
 	log.Println("Соединение с MongoDB установлено")
 
-	// Проверка соединения
 	log.Println("Проверяем соединение с MongoDB")
 	err = client.Ping(ctx, nil)
 	if err != nil {
@@ -57,7 +53,6 @@ func ConnectDB() {
 }
 
 func GetCollection(collectionName string) *mongo.Collection {
-	// Получаем название базы данных из переменной окружения
 	dbName := os.Getenv("DB_NAME")
 	if dbName == "" {
 		log.Fatal("Переменная окружения DB_NAME не установлена")

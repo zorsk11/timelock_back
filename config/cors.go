@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SetupCORS настраивает CORS middleware для Gin
 func SetupCORS(router *gin.Engine) {
 	corsConfig := cors.Config{
 		AllowOrigins:     []string{"http://localhost:5173"},
@@ -18,7 +17,6 @@ func SetupCORS(router *gin.Engine) {
 		MaxAge:           12 * time.Hour,
 	}
 
-	// Используем config.Debug
 	if Debug {
 		corsConfig.AllowOrigins = []string{"*"} // В режиме отладки разрешаем все источники
 	}

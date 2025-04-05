@@ -15,7 +15,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// isValidRole проверяет, что переданная роль является допустимой (администратор, учитель или персонал).
 func isValidRole(role models.Role) bool {
 	switch role {
 	case models.RoleAdmin, models.RoleTeacher, models.RoleStaff:
@@ -25,27 +24,21 @@ func isValidRole(role models.Role) bool {
 	}
 }
 
-// CreateUser создаёт нового пользователя.
-// Если роль не указана, назначается роль по умолчанию ("учитель").
-// Пароль хэшируется с помощью bcrypt, а keyID устанавливается равным ID в строковом представлении.
 func CreateUser(c *gin.Context) {
 	log.Println("Началась обработка запроса POST /users")
 	var user models.User
 
-	// Привязываем JSON к структуре пользователя.
 	if err := c.ShouldBindJSON(&user); err != nil {
 		log.Printf("Ошибка при привязке JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Проверка наличия пароля.
 	if user.Password == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Пароль не может быть пустым"})
 		return
 	}
 
-	// Хэширование пароля.
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("Ошибка при хэшировании пароля: %v", err)
@@ -54,12 +47,10 @@ func CreateUser(c *gin.Context) {
 	}
 	user.Password = string(hashedPassword)
 
-	// Если роль не передана, назначаем роль по умолчанию.
 	if user.Role == "" {
-		user.Role = models.RoleTeacher // по умолчанию — "учитель"
+		user.Role = models.RoleTeacher
 	}
 
-	// Проверка корректности переданной роли.
 	if !isValidRole(user.Role) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("Недопустимая роль пользователя. Допустимые роли: '%s', '%s', '%s'",
@@ -68,14 +59,11 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// Если роль администратора, даём доступ ко всем комнатам.
 	if user.Role == models.RoleAdmin {
 		user.AccessRooms = []string{"*"}
 	}
 
-	// Генерация нового ObjectID для MongoDB.
 	user.ID = primitive.NewObjectID()
-	// Используем строковое представление ID как keyID.
 	user.KeyID = user.ID.Hex()
 
 	collection := config.GetCollection("users")
@@ -97,7 +85,6 @@ func CreateUser(c *gin.Context) {
 	log.Println("Запрос POST /users обработан успешно")
 }
 
-// GetUsers возвращает список всех пользователей.
 func GetUsers(c *gin.Context) {
 	log.Println("Началась обработка запроса GET /users")
 
@@ -131,8 +118,6 @@ func GetUsers(c *gin.Context) {
 	log.Println("Запрос GET /users обработан успешно")
 }
 
-// UpdateUser обновляет данные пользователя.
-// Если передан новый пароль, он хэшируется с помощью bcrypt.
 func UpdateUser(c *gin.Context) {
 	log.Println("Началась обработка запроса PUT /users/:id")
 
@@ -151,7 +136,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Если передана роль, проверяем её корректность.
+	// Если роль передана и она некорректная, возвращаем ошибку
 	if updatedUser.Role != "" && !isValidRole(updatedUser.Role) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("Недопустимая роль пользователя. Допустимые роли: '%s', '%s', '%s'",
@@ -160,12 +145,46 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Если роль — администратор, даём доступ ко всем комнатам.
-	if updatedUser.Role == models.RoleAdmin {
-		updatedUser.AccessRooms = []string{"*"}
-	}
+	collection := config.GetCollection("users")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	// Если обновляется пароль, хэшируем его.
+	updateFields := bson.M{}
+
+	// Обновляем только непустые поля
+	if updatedUser.FirstName != "" {
+		updateFields["first_name"] = updatedUser.FirstName
+	}
+	if updatedUser.SecondName != "" {
+		updateFields["second_name"] = updatedUser.SecondName
+	}
+	if updatedUser.Email != "" {
+		updateFields["email"] = updatedUser.Email
+	}
+	if updatedUser.Phone != "" {
+		updateFields["phone"] = updatedUser.Phone
+	}
+	if updatedUser.Address != "" {
+		updateFields["address"] = updatedUser.Address
+	}
+	if updatedUser.City != "" {
+		updateFields["city"] = updatedUser.City
+	}
+	if updatedUser.Country != "" {
+		updateFields["country"] = updatedUser.Country
+	}
+	if updatedUser.Role != "" {
+		updateFields["role"] = updatedUser.Role
+		// Если роль - администратор, устанавливаем доступ ко всем комнатам
+		if updatedUser.Role == models.RoleAdmin {
+			updateFields["access_rooms"] = []string{"*"}
+		}
+	}
+	// Если передан непустой список комнат, обновляем поле access_rooms
+	if len(updatedUser.AccessRooms) > 0 {
+		updateFields["access_rooms"] = updatedUser.AccessRooms
+	}
+	// Обновляем пароль, если он передан
 	if updatedUser.Password != "" {
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(updatedUser.Password), bcrypt.DefaultCost)
 		if err != nil {
@@ -173,14 +192,15 @@ func UpdateUser(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось обновить пользователя"})
 			return
 		}
-		updatedUser.Password = string(hashedPassword)
+		updateFields["password"] = string(hashedPassword)
 	}
 
-	collection := config.GetCollection("users")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	if len(updateFields) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Нет данных для обновления"})
+		return
+	}
 
-	update := bson.M{"$set": updatedUser}
+	update := bson.M{"$set": updateFields}
 	_, err = collection.UpdateOne(ctx, bson.M{"_id": objID}, update)
 	if err != nil {
 		log.Printf("Ошибка при обновлении пользователя: %v", err)
@@ -192,7 +212,6 @@ func UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Пользователь успешно обновлен"})
 }
 
-// DeleteUser удаляет пользователя.
 func DeleteUser(c *gin.Context) {
 	log.Println("Началась обработка запроса DELETE /users/:id")
 

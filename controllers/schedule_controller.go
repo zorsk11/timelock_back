@@ -13,7 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// getUserIDByName ищет пользователя по имени и фамилии и возвращает его ObjectID
+// Поиск ID пользователя по имени и фамилии
 func getUserIDByName(firstName, secondName string) (primitive.ObjectID, error) {
 	var user models.User
 
@@ -31,7 +31,7 @@ func getUserIDByName(firstName, secondName string) (primitive.ObjectID, error) {
 	return user.ID, nil
 }
 
-// CreateSchedule создает новое расписание
+// Создание расписания
 func CreateSchedule(c *gin.Context) {
 	var schedule models.Schedule
 	if err := c.ShouldBindJSON(&schedule); err != nil {
@@ -39,7 +39,7 @@ func CreateSchedule(c *gin.Context) {
 		return
 	}
 
-	// Найти пользователя по имени и фамилии
+	// Поиск пользователя по имени и фамилии для заполнения UserID
 	userID, err := getUserIDByName(schedule.FirstName, schedule.SecondName)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -50,7 +50,6 @@ func CreateSchedule(c *gin.Context) {
 		return
 	}
 
-	// Назначить UserID найденного пользователя и создать новый ObjectID для расписания
 	schedule.UserID = userID
 	schedule.ID = primitive.NewObjectID()
 
@@ -64,7 +63,7 @@ func CreateSchedule(c *gin.Context) {
 	c.JSON(http.StatusOK, schedule)
 }
 
-// GetSchedules извлекает все расписания из базы данных
+// Получение списка расписаний
 func GetSchedules(c *gin.Context) {
 	if config.DB == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Нет соединения с базой данных"})
@@ -87,7 +86,7 @@ func GetSchedules(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Список расписаний", "data": schedules})
 }
 
-// UpdateSchedule обновляет данные расписания
+// Обновление расписания (динамическое обновление только переданных полей)
 func UpdateSchedule(c *gin.Context) {
 	id := c.Param("id")
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -102,21 +101,40 @@ func UpdateSchedule(c *gin.Context) {
 		return
 	}
 
-	// При необходимости обновляем userID по имени и фамилии
-	if userID, err := getUserIDByName(updatedSchedule.FirstName, updatedSchedule.SecondName); err == nil {
-		updatedSchedule.UserID = userID
+	updateData := bson.M{}
+
+	// Обновляем поля, если они переданы и не пустые
+	if updatedSchedule.FirstName != "" {
+		updateData["first_name"] = updatedSchedule.FirstName
+	}
+	if updatedSchedule.SecondName != "" {
+		updateData["second_name"] = updatedSchedule.SecondName
+	}
+	// Если оба поля заданы, пробуем обновить UserID
+	if updatedSchedule.FirstName != "" && updatedSchedule.SecondName != "" {
+		if userID, err := getUserIDByName(updatedSchedule.FirstName, updatedSchedule.SecondName); err == nil {
+			updateData["user_id"] = userID
+		}
+	}
+	if updatedSchedule.Day != "" {
+		updateData["day"] = updatedSchedule.Day
+	}
+	if updatedSchedule.StartTime != "" {
+		updateData["start_time"] = updatedSchedule.StartTime
+	}
+	if updatedSchedule.EndTime != "" {
+		updateData["end_time"] = updatedSchedule.EndTime
+	}
+	if updatedSchedule.RoomNumber != "" {
+		updateData["room_number"] = updatedSchedule.RoomNumber
+	}
+	if updatedSchedule.Subject != "" {
+		updateData["subject"] = updatedSchedule.Subject
 	}
 
-	// Формируем объект обновления вручную, чтобы не перезаписывать поля неверными или пустыми значениями
-	updateData := bson.M{
-		"userId":      updatedSchedule.UserID,
-		"first_name":  updatedSchedule.FirstName,
-		"second_name": updatedSchedule.SecondName,
-		"day":         updatedSchedule.Day,
-		"startTime":   updatedSchedule.StartTime,
-		"endTime":     updatedSchedule.EndTime,
-		"roomNumber":  updatedSchedule.RoomNumber,
-		"subject":     updatedSchedule.Subject,
+	if len(updateData) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Нет данных для обновления"})
+		return
 	}
 
 	collection := config.DB.Database("ENU").Collection("schedule")
@@ -136,7 +154,7 @@ func UpdateSchedule(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Расписание успешно обновлено", "data": updateData})
 }
 
-// DeleteSchedule удаляет расписание
+// Удаление расписания
 func DeleteSchedule(c *gin.Context) {
 	id := c.Param("id")
 	objID, err := primitive.ObjectIDFromHex(id)

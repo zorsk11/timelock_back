@@ -11,5 +11,4 @@ func ScheduleRoutes(r *gin.Engine) {
 	r.GET("/schedule", controllers.GetSchedules)
 	r.PUT("/schedule/:id", controllers.UpdateSchedule)
 	r.DELETE("/schedule/:id", controllers.DeleteSchedule)
-
 }

@@ -20,10 +20,10 @@ type User struct {
 	Email       string             `json:"email" bson:"email"`
 	AccessRooms []string           `json:"access_rooms" bson:"access_rooms"`
 	Photos      []string           `json:"photos,omitempty" bson:"photos,omitempty"`
-	Address     string             `json:"address,omitempty" bson:"address,omitempty"` // Адрес (необязательно)
-	Phone       string             `json:"phone,omitempty" bson:"phone,omitempty"`     // Телефон (необязательно)
-	Country     string             `json:"country,omitempty" bson:"country,omitempty"` // Страна (необязательно)
-	City        string             `json:"city,omitempty" bson:"city,omitempty"`       // Город (необязательно)
-	Role        Role               `json:"role" bson:"role"`                           // Роль пользователя
-	Password    string             `json:"password,omitempty" bson:"password"`         // Пароль (необязательно)
+	Address     string             `json:"address,omitempty" bson:"address,omitempty"`
+	Phone       string             `json:"phone,omitempty" bson:"phone,omitempty"`
+	Country     string             `json:"country,omitempty" bson:"country,omitempty"`
+	City        string             `json:"city,omitempty" bson:"city,omitempty"`
+	Role        Role               `json:"role" bson:"role"`
+	Password    string             `json:"password,omitempty" bson:"password"`
 }
